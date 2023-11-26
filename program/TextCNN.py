@@ -156,10 +156,11 @@ if __name__ == "__main__":
     dev_loader=DataLoader(train_dataset,batch_size,shuffle=False)
     #模型入口
     model = TextCNNModel(word_embedding,max_len,hidden_num)
+    model=model.to(device)
     #优化器定义
     #model.parameters()表示要优化的参数是模型中的所有可学习参数
     opt=torch.optim.AdamW(model.parameters(),lr=lr)
-
+    opt=opt.to(device)
     mode=input("选择模式： 1 训练 2 测试")
     if mode=="1":
         print("train start")
@@ -169,6 +170,7 @@ if __name__ == "__main__":
                 batch_idx=batch_idx.to(device)
                 batch_label=batch_label.to(device)
                 loss=model.forward(batch_idx,batch_label)
+                loss=loss.to(device)
                 loss.backward()
                 opt.step()
                 opt.zero_grad()
