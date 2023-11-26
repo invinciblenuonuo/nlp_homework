@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 def ReadData(train_or_test, num=None):
     # 打开文件，文件路径通过 os.path.join 构建，使用 utf-8 编码方式打开
-    with open(os.path.join( "..","data", train_or_test + ".txt"), encoding="utf-8") as f:
+    with open(os.path.join( train_or_test + ".txt"), encoding="utf-8") as f:
         # 读取文件内容并按行分割，得到一个包含所有行的列表all_data
         all_data = f.read().split("\n")
 
@@ -117,7 +117,7 @@ class TextCNNModel(nn.Module):
         b5_result=self.block5.forward(batch_emb)
 
         feature=torch.cat([b1_result,b2_result,b3_result,b4_result,b5_result],dim=1)
-        pre = self.classifier(feature)
+        pre    =self.classifier(feature)
         
         if batch_label is not None:
             loss=self.loss_fun(pre,batch_label)
@@ -130,20 +130,22 @@ class TextCNNModel(nn.Module):
 
 if __name__ == "__main__":
     print("start")
+    
     #读入训练集
-    train_text,train_label=ReadData("train") 
-    dev_text,dev_label=ReadData("test") 
+    train_text,train_label=ReadData("train",100) 
+    dev_text,dev_label=ReadData("test",100) 
     
     embedding=5     #字向量维度
     max_len=20       #句子最大长度
-    batch_size=10    #批次大小
-    epoch=1000       #遍历次数
+    batch_size=1    #批次大小
+    epoch=100       #循环次数
     lr=0.001        #学习率
     hidden_num=10    #隐藏层个数
 
     class_num=len(set(train_label))
     #使用GPU
     device="cuda:0" if torch.cuda.is_available() else "cpu" 
+    print(device)
     #构建字典
     word_2_index,word_embedding=BuildCorpus(train_text,embedding)
     #加载数据集
@@ -158,26 +160,49 @@ if __name__ == "__main__":
     #model.parameters()表示要优化的参数是模型中的所有可学习参数
     opt=torch.optim.AdamW(model.parameters(),lr=lr)
 
-    #循环训练的核心部分 
-    for e in range(epoch):
-        for batch_idx,batch_label in train_loader:
-            batch_idx=batch_idx.to(device)
-            batch_label=batch_label.to(device)
-            loss=model.forward(batch_idx,batch_label)
-            loss.backward()
-            opt.step()
-            opt.zero_grad()
-      
+    mode=input("选择模式： 1 训练 2 测试")
+    if mode=="1":
+        print("train start")
+        #循环训练的核心部分 
+        for e in range(epoch):
+            for batch_idx,batch_label in train_loader:
+                batch_idx=batch_idx.to(device)
+                batch_label=batch_label.to(device)
+                loss=model.forward(batch_idx,batch_label)
+                loss.backward()
+                opt.step()
+                opt.zero_grad()
+        
 
-        #准确率测试
-        right_num=0
-        for batch_idx,batch_label in train_loader:
+            #准确率测试
+            right_num=0
+            for batch_idx,batch_label in dev_loader:
+                batch_idx=batch_idx.to(device)
+                batch_label=batch_label.to(device)
+                pre=model.forward(batch_idx)
+                right_num+=int(torch.sum(pre==batch_label))#求算对的个数
+                print(pre)
+            print(f"loss:{loss:.3f} acc = {(right_num/len(dev_text)*100):.2f}%")
+            
+        torch.save(model, 'model.pt')
+
+    else:
+        model=torch.load('model.pt')
+        user_text,user_label=ReadData("user",1) 
+        user_dataset=TextDataset(user_text,user_label,word_2_index,max_len)
+        user_loader=DataLoader(user_dataset,1,shuffle=False)
+
+        for batch_idx,batch_label in user_loader:
             batch_idx=batch_idx.to(device)
             batch_label=batch_label.to(device)
             pre=model.forward(batch_idx)
-            right_num+=int(torch.sum(pre==batch_label))#求算对的个数
-        print(f"loss:{loss:.3f} acc = {(right_num/len(dev_text)*100):.2f}%")
-        
+            print(pre)
+
+
+
+
+
+
     
 
 
